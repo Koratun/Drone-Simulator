@@ -38,8 +38,20 @@ public class SaveCamera : MonoBehaviour
         var Bytes = Image.EncodeToPNG();
         Destroy(Image);
 
-        File.WriteAllBytes(droneController.dataPath + "Run" + droneController.runCounter + "/photos/" + FileCounter + ".png", Bytes);
+        File.WriteAllBytes(droneController.dataPath + "Run" + droneController.runCounter + "/photos/" + zfill(FileCounter, (droneController.framesToSimulate+"").Length) + ".png", Bytes);
         FileCounter++;
+    }
+
+    //Prepend 0's to an int to the desired length
+    private string zfill(int n, int digitsToFill)
+    {
+        string str = "" + n;
+        for (int i = str.Length; i < digitsToFill; i++)
+        {
+            str = "0" + str;
+        }
+
+        return str;
     }
 
 }

@@ -36,6 +36,14 @@ public class Drone : MonoBehaviour
 
     private bool collided = false;
 
+    private float distanceForCycle;
+
+    private Vector3 maxVelocity;
+
+    private Vector3 velocity;
+
+    private bool cycleUp = true;
+
     // Start is called before the first frame update
     void Start()
     {
@@ -83,30 +91,37 @@ public class Drone : MonoBehaviour
         {
             Directory.CreateDirectory(dataPath + "Run" + runCounter);
             Directory.CreateDirectory(dataPath + "Run" + runCounter + "/photos");
-            //Save current Y-pos
-            File.WriteAllText(dataPath + "Run" + runCounter + "/yPos.txt", transform.position.y/2 + "\n"); //Divide by 2 to scale game units to cm
+            //Save current positional data
+            //Divide by 2 to scale game units to cm
+            File.WriteAllText(dataPath + "Run" + runCounter + "/xPos.txt", transform.position.x / 2 + "\n");
+            File.WriteAllText(dataPath + "Run" + runCounter + "/yPos.txt", transform.position.y / 2 + "\n"); 
+            File.WriteAllText(dataPath + "Run" + runCounter + "/zPos.txt", transform.position.z / 2 + "\n");
+            //Save the rotational data.
+            Vector3 rotation = transform.rotation.eulerAngles;
+            File.WriteAllText(dataPath + "Run" + runCounter + "/rotation.txt", rotation.x + ", " + rotation.y + ", " + rotation.z + "\n");
         }
         else
         {
-            //Save current Y-pos
-            File.AppendAllText(dataPath + "Run" + runCounter + "/yPos.txt", transform.position.y/2 + "\n");
+            //Save current positional data
+            File.AppendAllText(dataPath + "Run" + runCounter + "/xPos.txt", transform.position.x / 2 + "\n");
+            File.AppendAllText(dataPath + "Run" + runCounter + "/yPos.txt", transform.position.y / 2 + "\n");
+            File.AppendAllText(dataPath + "Run" + runCounter + "/zPos.txt", transform.position.z / 2 + "\n");
+            //Save the rotational data.
+            Vector3 rotation = transform.rotation.eulerAngles;
+            File.AppendAllText(dataPath + "Run" + runCounter + "/rotation.txt", rotation.x + ", " + rotation.y + ", " + rotation.z + "\n");
         }
 
 
         if (distanceToTravel <= 0)
         {
-            int collisions = 0;
+            Debug.Log("Frame: " + framesCounter);
             do
             {
                 pathChecker.transform.position = transform.position;
                 collided = false;
-                if (collisions > 0)
-                {
-                    Debug.Log("Collided! " + collisions);
-                }
 
                 distanceToTravel = Random.Range(5f * 2, 20f * 2);
-                float unitsPerSec = map(distanceToTravel, 5 * 2, 20 * 2, 2, 10); // 1 - 5 cm/s
+                float unitsPerSec = map(distanceToTravel, 5 * 2, 20 * 2, 2.0f/60, 10.0f/60); // 1 - 5 cm/s (2 - 10 game units / 60 frames)
 
                 direction = Random.onUnitSphere * unitsPerSec; //To travel about 10 in game units every 60 frames or 1 second.
                 rotationAmount = Random.Range(-15f, 15f) / distanceToTravel;
@@ -114,18 +129,57 @@ public class Drone : MonoBehaviour
                 //Move path checking sphere and see if it hits anything. If it does, collision() will be called.
                 pathChecker.transform.position += direction.normalized * distanceToTravel;
 
-                collisions++;
-
                 //If the direction and distance we randomly pick intersects with the map
                 //OR 
                 //if the future position is less than 10 units away from the map mesh
                 //THEN we want to randomize it again.
                 //mapMesh.meshClose(direction.normalized * distanceToTravel + transform.position, 10);
             } while (Physics.Raycast(transform.position, direction, distanceToTravel + 10) || collided);// || mapMesh.meshClose(direction.normalized * distanceToTravel + transform.position, 10));
+            maxVelocity = direction;
+            distanceForCycle = distanceToTravel;
         }
 
-        transform.position += direction;
-        distanceToTravel -= direction.magnitude;
+        //IF NOT at max velocity for given distance, THEN
+        //  Accelerate proportional to max velocity
+        //  Rotate drone based on acceleration applied
+        //ELSE IF closer than distance needed to decelerate to 0, THEN
+        //  Accelerate proportional to max velocity in the opposite direction
+        //  Rotate drone based on acceleration applied.
+        //Else do nothing
+
+        // accel = maxVelocity^2 / (distance * .2 * 2)
+        Vector3 accel = new Vector3(maxVelocity.x * maxVelocity.x, maxVelocity.y * maxVelocity.y, maxVelocity.z * maxVelocity.z) / (distanceForCycle * 0.4f);
+
+        //If we are in the first 20% of the travel cycle, and the velocity still needs to accelerate, then do so
+        if (distanceToTravel > distanceForCycle * .8 && velocity.magnitude < maxVelocity.magnitude)
+        {
+            velocity += accel;
+        }//If we are about to enter the last 20% of the travel cycle, then lower the velocity
+        else if (distanceToTravel - velocity.magnitude <= distanceToTravel * .2 && velocity.magnitude > 0)
+        {
+            //If there is a bit of error (velocity should never be less than acceleration in theory,
+            //but in practice it happens frequently) then round to zero.
+            if (velocity.magnitude <= accel.magnitude)
+            {
+                velocity = Vector3.zero;
+            }
+            else
+            {
+                velocity -= accel;
+            }
+        }
+
+        if(velocity == Vector3.zero && distanceToTravel > 0)
+        {
+            Debug.Log("Warning! Velocity is 0 and we had " + distanceToTravel + " left!");
+            distanceToTravel = 0;
+        }
+
+        //Implement tilting of drone to simulate real movement.
+
+
+        transform.position += velocity;
+        distanceToTravel -= velocity.magnitude;
         transform.Rotate(0, rotationAmount, 0);
 
         Camera.main.Render();
