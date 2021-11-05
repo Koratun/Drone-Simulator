@@ -23,6 +23,10 @@ public class SaveCamera : MonoBehaviour
 
     void CamCapture()
     {
+        if (!droneController.saveData)
+        {
+            return;
+        }
         Camera Cam = GetComponent<Camera>();
 
         RenderTexture currentRT = RenderTexture.active;

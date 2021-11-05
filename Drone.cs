@@ -1,6 +1,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.IO;
+using System;
 using UnityEngine;
 
 public class Drone : MonoBehaviour
@@ -28,6 +29,8 @@ public class Drone : MonoBehaviour
     [HideInInspector]
     public string dataPath;
 
+    public bool saveData;
+
     public PathChecker pathChecker;
 
     public GameObject spawnParent;
@@ -42,19 +45,20 @@ public class Drone : MonoBehaviour
 
     private Vector3 velocity;
 
-    private bool cycleUp = true;
+    private int accelFrameCount = 0;
 
     // Start is called before the first frame update
     void Start()
     {
         spawnPoints = spawnParent.GetComponentsInChildren<Transform>();
 
-        int i = Random.Range(0, spawnPoints.Length);
+        int i = UnityEngine.Random.Range(0, spawnPoints.Length);
 
         transform.position = spawnPoints[i].position;
-        transform.Rotate(0, Random.Range(0, 360), 0);
+        transform.Rotate(0, UnityEngine.Random.Range(0, 360), 0);
 
         pathChecker.transform.position = transform.position;
+
 
         dataPath = "D:/OneDrive/Documents/UAT/Production Studio/Deep Sight/Data/";
 
@@ -71,9 +75,9 @@ public class Drone : MonoBehaviour
             framesCounter = 0;
             runCounter++;
 
-            int i = Random.Range(0, spawnPoints.Length);
+            int i = UnityEngine.Random.Range(0, spawnPoints.Length);
             transform.position = spawnPoints[i].position;
-            transform.Rotate(0, Random.Range(0, 360), 0);
+            transform.Rotate(0, UnityEngine.Random.Range(0, 360), 0);
 
             pathChecker.transform.position = transform.position;
 
@@ -94,10 +98,10 @@ public class Drone : MonoBehaviour
             //Save current positional data
             //Divide by 2 to scale game units to cm
             File.WriteAllText(dataPath + "Run" + runCounter + "/xPos.txt", transform.position.x / 2 + "\n");
-            File.WriteAllText(dataPath + "Run" + runCounter + "/yPos.txt", transform.position.y / 2 + "\n"); 
+            File.WriteAllText(dataPath + "Run" + runCounter + "/yPos.txt", transform.position.y / 2 + "\n");
             File.WriteAllText(dataPath + "Run" + runCounter + "/zPos.txt", transform.position.z / 2 + "\n");
             //Save the rotational data.
-            Vector3 rotation = transform.rotation.eulerAngles;
+            Vector3 rotation = transform.eulerAngles;
             File.WriteAllText(dataPath + "Run" + runCounter + "/rotation.txt", rotation.x + ", " + rotation.y + ", " + rotation.z + "\n");
         }
         else
@@ -107,7 +111,7 @@ public class Drone : MonoBehaviour
             File.AppendAllText(dataPath + "Run" + runCounter + "/yPos.txt", transform.position.y / 2 + "\n");
             File.AppendAllText(dataPath + "Run" + runCounter + "/zPos.txt", transform.position.z / 2 + "\n");
             //Save the rotational data.
-            Vector3 rotation = transform.rotation.eulerAngles;
+            Vector3 rotation = transform.eulerAngles;
             File.AppendAllText(dataPath + "Run" + runCounter + "/rotation.txt", rotation.x + ", " + rotation.y + ", " + rotation.z + "\n");
         }
 
@@ -115,16 +119,17 @@ public class Drone : MonoBehaviour
         if (distanceToTravel <= 0)
         {
             Debug.Log("Frame: " + framesCounter);
+            accelFrameCount = 0;
             do
             {
                 pathChecker.transform.position = transform.position;
                 collided = false;
 
-                distanceToTravel = Random.Range(5f * 2, 20f * 2);
+                distanceToTravel = UnityEngine.Random.Range(5f * 2, 20f * 2);
                 float unitsPerSec = map(distanceToTravel, 5 * 2, 20 * 2, 2.0f/60, 10.0f/60); // 1 - 5 cm/s (2 - 10 game units / 60 frames)
 
-                direction = Random.onUnitSphere * unitsPerSec; //To travel about 10 in game units every 60 frames or 1 second.
-                rotationAmount = Random.Range(-15f, 15f) / distanceToTravel;
+                direction = UnityEngine.Random.onUnitSphere * unitsPerSec; //To travel about 10 in game units every 60 frames or 1 second.
+                rotationAmount =  UnityEngine.Random.Range(-1f, 1f) / distanceToTravel;
 
                 //Move path checking sphere and see if it hits anything. If it does, collision() will be called.
                 pathChecker.transform.position += direction.normalized * distanceToTravel;
@@ -148,14 +153,22 @@ public class Drone : MonoBehaviour
         //Else do nothing
 
         // accel = maxVelocity^2 / (distance * .2 * 2)
-        Vector3 accel = new Vector3(maxVelocity.x * maxVelocity.x, maxVelocity.y * maxVelocity.y, maxVelocity.z * maxVelocity.z) / (distanceForCycle * 0.4f);
+        Vector3 accel = new Vector3(maxVelocity.x * maxVelocity.x, maxVelocity.y * maxVelocity.y, maxVelocity.z * maxVelocity.z) / (distanceForCycle * 0.2f);
+
+        accel = maxVelocity / (maxVelocity.magnitude / accel.magnitude);
+
+        int accelFrames = (int)(maxVelocity.magnitude / accel.magnitude);
+
+        int frameToDecelerate = (int)((distanceForCycle - (maxVelocity.magnitude / accel.magnitude * maxVelocity.magnitude)) / maxVelocity.magnitude + accelFrames);
+
+        //totalDistanceFrames = frameToDecelerate + accelFrames;
 
         //If we are in the first 20% of the travel cycle, and the velocity still needs to accelerate, then do so
-        if (distanceToTravel > distanceForCycle * .8 && velocity.magnitude < maxVelocity.magnitude)
+        if (accelFrameCount < maxVelocity.magnitude/accel.magnitude)
         {
             velocity += accel;
         }//If we are about to enter the last 20% of the travel cycle, then lower the velocity
-        else if (distanceToTravel - velocity.magnitude <= distanceToTravel * .2 && velocity.magnitude > 0)
+        else if (accelFrameCount > frameToDecelerate)
         {
             //If there is a bit of error (velocity should never be less than acceleration in theory,
             //but in practice it happens frequently) then round to zero.
@@ -167,20 +180,34 @@ public class Drone : MonoBehaviour
             {
                 velocity -= accel;
             }
+        }//Make sure we reached the max velocity
+        else if (velocity.magnitude != maxVelocity.magnitude && accelFrameCount < frameToDecelerate)
+        {
+            velocity = maxVelocity;
         }
 
-        if(velocity == Vector3.zero && distanceToTravel > 0)
+        accelFrameCount++;
+
+        if (velocity == Vector3.zero && distanceToTravel > 0)
         {
-            Debug.Log("Warning! Velocity is 0 and we had " + distanceToTravel + " left!");
             distanceToTravel = 0;
         }
 
-        //Implement tilting of drone to simulate real movement.
+        //Tilting of drone to simulate real movement.
+        float xAngularTilt = map(velocity.x, 0, 10.0f / 60, 0, 15);
+        float zAngularTilt = map(velocity.z, 0, 10.0f / 60, 0, 15);
 
+        transform.eulerAngles = new Vector3(xAngularTilt, transform.eulerAngles.y + rotationAmount, zAngularTilt);
+
+        //if(Math.Abs(oldRotation.x - transform.eulerAngles.x) > 1 || Math.Abs(oldRotation.z - transform.eulerAngles.z) > 1)
+        //{
+        //    Debug.Log("Uh oh");
+        //}
+
+        //oldRotation = transform.eulerAngles;
 
         transform.position += velocity;
         distanceToTravel -= velocity.magnitude;
-        transform.Rotate(0, rotationAmount, 0);
 
         Camera.main.Render();
         framesCounter++;

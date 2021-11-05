@@ -38,7 +38,7 @@ RenderSettings:
   m_ReflectionIntensity: 1
   m_CustomReflection: {fileID: 0}
   m_Sun: {fileID: 0}
-  m_IndirectSpecularColor: {r: 0.44657826, g: 0.49641263, b: 0.57481676, a: 1}
+  m_IndirectSpecularColor: {r: 0.44657898, g: 0.4964133, b: 0.5748178, a: 1}
   m_UseRadianceAmbientProbe: 0
 --- !u!157 &3
 LightmapSettings:
@@ -259,11 +259,12 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 283de72d8a28d714b9c7cd8a7fdd9c1d, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  runs: 1
+  runs: 10
   cam: {fileID: 1775562068}
   runCounter: 0
-  framesToSimulate: 600
+  framesToSimulate: 3000
   dataPath: 
+  saveData: 1
   pathChecker: {fileID: 345988867}
   spawnParent: {fileID: 502872479}
 --- !u!1 &169550209
@@ -556,7 +557,7 @@ Camera:
     width: 1
     height: 1
   near clip plane: 0.3
-  far clip plane: 1000
+  far clip plane: 10000
   field of view: 60
   orthographic: 0
   orthographic size: 5
@@ -5610,7 +5611,7 @@ Camera:
     width: 1
     height: 1
   near clip plane: 0.3
-  far clip plane: 4000
+  far clip plane: 5000
   field of view: 60
   orthographic: 0
   orthographic size: 5
